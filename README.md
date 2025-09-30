@@ -1,3 +1,1 @@
-We present the code for CFMoE here.
-
-try commit - [0929]
+We present the relevant code and code for CFMoE here.
