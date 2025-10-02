@@ -1,0 +1,4 @@
+alpaca 52K
+samsum 15K
+mmlu   100K
+gsm    8k
