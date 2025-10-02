@@ -1,0 +1,58 @@
+# 操作系统生成的文件
+.DS_Store
+Thumbs.db
+
+# Python 虚拟环境
+venv/
+.env/
+
+# Python 缓存文件
+__pycache__/
+*.py[cod]
+
+# 日志文件
+*.log
+
+# IDE 和编辑器配置文件
+.vscode/
+.idea/
+
+# 依赖文件（通常不需要提交）
+*.egg-info/
+
+# 临时文件
+*.tmp
+*.bak
+
+# 构建和打包文件
+dist/
+build/
+*.egg
+
+# 测试和覆盖率报告
+htmlcov/
+.coverage
+.tox/
+
+# API 密钥（不应提交）
+api_key.txt
+
+# pycache
+src/__pycache__/
+
+logs*/
+checkpoints/
+LoRA_models*/
+LoRA_models.ok*/
+merged_models/
+models/deepseek-moe-16b-chat/*.safetensors
+models/smallthinker-moe-*-thinker/*.safetensors
+models/smallthinker-moe-*-thinker/*.vscode
+data/
+cache/
+plt/
+eval_result/
+trace/
+/metrics
+/outdated
+/refs
