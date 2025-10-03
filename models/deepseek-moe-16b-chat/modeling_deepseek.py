@@ -342,46 +342,34 @@ class MoEGate(nn.Module):
         total_loss = aux_loss
 
         if self.training and self.consecutive_expert_loss_weight > 0.0:
-            # 将scores reshape为(bsz, seq_len, n_routed_experts)
             scores_reshaped = scores.view(bsz, seq_len, -1)
-            # 计算相邻token的概率分布差异
             if self.consecutive_expert_loss_type == 'l2':
-                # L2距离
                 diff = scores_reshaped[:, :-1, :] - scores_reshaped[:, 1:, :]
                 new_aux_loss = (diff ** 2).mean()
             elif self.consecutive_expert_loss_type == 'kl':
-                # KL散度
-                P = scores_reshaped[:, :-1, :]  # (bsz, seq_len-1, n_experts)
-                Q = scores_reshaped[:, 1:, :]   # (bsz, seq_len-1, n_experts)
-                # 添加小epsilon以避免log(0)
+                P = scores_reshaped[:, :-1, :]
+                Q = scores_reshaped[:, 1:, :]
                 eps = 1e-6
                 P = P + eps
                 Q = Q + eps
-                # 归一化
                 P = P / P.sum(dim=-1, keepdim=True)
                 Q = Q / Q.sum(dim=-1, keepdim=True)
-                # 对称的KL散度：(KL(P||Q) + KL(Q||P)) / 2
                 kl_pq = F.kl_div(P.log(), Q, reduction='batchmean')
                 kl_qp = F.kl_div(Q.log(), P, reduction='batchmean')
                 new_aux_loss = (kl_pq + kl_qp) / 2
             elif self.consecutive_expert_loss_type == 'js':
-                # JS散度
-                P = scores_reshaped[:, :-1, :]  # (bsz, seq_len-1, n_experts)
-                Q = scores_reshaped[:, 1:, :]   # (bsz, seq_len-1, n_experts)
+                P = scores_reshaped[:, :-1, :]
+                Q = scores_reshaped[:, 1:, :]
                 Ptk = P.topk(64, dim=-1)
                 Qtk = Q.topk(64, dim=-1)
                 P = P + Ptk.indices
                 Q = Q + Qtk.indices
-                # 添加小epsilon以避免log(0)
                 eps = 1e-6
                 P = P + eps
                 Q = Q + eps
-                # 归一化确保概率和为1
                 P = P / P.sum(dim=-1, keepdim=True)
                 Q = Q / Q.sum(dim=-1, keepdim=True)
-                # M = (P + Q) / 2
                 M = (P + Q) / 2
-                # JS散度：(KL(P||M) + KL(Q||M)) / 2
                 kl_p_m = F.kl_div(P.log(), M, reduction='batchmean')
                 kl_q_m = F.kl_div(Q.log(), M, reduction='batchmean')
                 new_aux_loss = (kl_p_m + kl_q_m) / 2
@@ -431,7 +419,6 @@ class DeepseekMoE(nn.Module):
             intermediate_size = config.moe_intermediate_size * config.n_shared_experts
             self.shared_experts = DeepseekMLP(config=config, intermediate_size = intermediate_size)
         
-        # 新增：用于记录推理时的专家激活和门控分数
         self.expert_activations = []
         self.gate_scores = []
 
@@ -442,7 +429,6 @@ class DeepseekMoE(nn.Module):
         hidden_states = hidden_states.view(-1, hidden_states.shape[-1])
         flat_topk_idx = topk_idx.view(-1)
 
-        # 在推理模式下记录专家激活和门控分数
         if not self.training:
             self.expert_activations.append(topk_idx.view(orig_shape[0], orig_shape[1], -1).detach())
             self.gate_scores.append(scores.view(orig_shape[0], orig_shape[1], -1).detach())

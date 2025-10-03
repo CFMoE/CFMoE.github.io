@@ -6,11 +6,10 @@ from tqdm import tqdm
 import torch
 
 def prepare_example(input_text, output_text, tokenizer, max_words_len):
-    # Tokenize
     tokenized_input = tokenizer(input_text, add_special_tokens=False)
     tokenized_output = tokenizer(output_text, add_special_tokens=False)
 
-    input_ids = torch.tensor(tokenized_input['input_ids'] + tokenized_output['input_ids'] + [tokenizer.eos_token_id]) # use eos_token_id as the end of sentence
+    input_ids = torch.tensor(tokenized_input['input_ids'] + tokenized_output['input_ids'] + [tokenizer.eos_token_id])
     attention_mask = torch.tensor(tokenized_input['attention_mask'] + tokenized_output['attention_mask'] + [1])
     labels = torch.tensor([-100] * len(tokenized_input['input_ids']) + tokenized_output['input_ids'] + [tokenizer.eos_token_id])
 
@@ -122,7 +121,6 @@ def process_common_v2_example(example, prompt_dict, tokenizer, max_words_len):
 
     return prepare_example(input_text, output_text, tokenizer, max_words_len)
 
-## 20250928: 一些中文你训练数据库
 def process_csl_example(example, prompt_dict, tokenizer, max_words_len):
     for k in example:
         example[k] = example[k].strip('\n')
@@ -159,13 +157,13 @@ process_handlers = {
 }
 
 class DataPreparer:
-    """数据准备类"""
+    """Data preparation class for CFMoE framework."""
     def __init__(self, config, tokenizer):
         self.config = config
         self.tokenizer = tokenizer
 
     def load_data(self, dataset_path, dataset_name, dataset_type):
-        """加载 JSON 数据集并分词"""
+        """Load and tokenize JSON dataset."""
         dataset_name = dataset_name.lower()
         dataset_path = os.path.join(dataset_path, dataset_name)
 
@@ -179,14 +177,13 @@ class DataPreparer:
             raise ValueError(f"Unsupported dataset type: {dataset_type}")
 
         print(f"Loading dataset == {dataset_name} == ....")
-        # 使用 load_dataset 加载 JSON 文件
         dataset = load_dataset("json", data_files=data_file)["train"]
 
         if dataset_name in process_handlers:
             handler = process_handlers[dataset_name]
         else:
             raise ValueError(f"Unsupported dataset: {dataset_name}")
-        # 使用 dataset.map 逐个处理样本
+        
         tokenized_dataset = dataset.map(
             lambda example: handler(example, prompt_dict, self.tokenizer, self.config.max_words_len),
             remove_columns=dataset.column_names
@@ -195,7 +192,7 @@ class DataPreparer:
         return tokenized_dataset
 
     def get_dataloader(self, dataset, shuffle=True):
-        """创建数据加载器"""
+        """Create data loader."""
         return DataLoader(
             dataset,
             batch_size=self.config.batch_size,

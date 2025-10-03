@@ -3,7 +3,7 @@ import argparse
 import evaluate
 
 def set_seed(seed):
-    """设置随机种子"""
+    """Set random seed for reproducibility."""
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
@@ -28,7 +28,7 @@ def get_arguments():
     parser.add_argument(
         "--consecutive_expert_loss_type",
         type=str,
-        default="js", # 'l2', 'js', 'kl'
+        default="js",
         help="Distance function to calculate the distribution difference between consecutive tokens"
     )
     
@@ -141,6 +141,6 @@ def get_arguments():
     return args
 
 def compute_metrics(eval_pred):
-    """Compute metrics for trainer"""
+    """Compute metrics for trainer."""
     rouge_score = evaluate.load("rouge")
     

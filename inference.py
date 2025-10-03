@@ -2,7 +2,7 @@
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"  # Avoid tokenizer parallelism warnings
 
-from config_i import Config
+from config import Config
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers import BitsAndBytesConfig, AutoConfig, GenerationConfig
 from peft import PeftModelForCausalLM
@@ -30,6 +30,7 @@ from rouge import Rouge
 
 @dataclass
 class GenMetric:
+    """Generation metrics for evaluation."""
     got:str = None
     expected:str = None
     is_correct:int = 0
@@ -37,9 +38,9 @@ class GenMetric:
     rouge1:float = -1.0
     rouge2:float = -1.0
     rougeL:float = -1.0
-    # rougeLsum:float = -1.0
 
 class InferenceEngine:
+    """Inference engine for CFMoE model evaluation."""
     def __init__(self, config, rank, device):
         self.config = config
         self.rank = rank
@@ -158,18 +159,16 @@ class InferenceEngine:
                 
             if hasattr(moe_module, 'reset_metrics'):
                 moe_module.reset_metrics()
-        # shape of all_expert_activations: [tensor(bsz, seq_len, topk)], len(all_expert_activations)=layer_num
-        # shape of all_gate_scores: [tensor(bsz, seq_len, exp_num)], len(all_gate_scores)=layer_num
         return generated_texts, all_expert_activations, all_gate_scores, outputs.logits
     
     def get_moe_metainfo(self,):
-        # return the number of moe layers and number of experts in each layer.
+        """Return the number of moe layers and number of experts in each layer."""
         model = self.base_model
         layers = self.get_decoder_layers(model)
         moe_module_name = config.moe_module_name
         moe_n = len(layers)
         
-        first_layer = layers[1] # the first layer of deepseek-moe-16b dont have experts
+        first_layer = layers[1]
         try:
             moe_module = getattr(first_layer, moe_module_name)
             experts_module = getattr(moe_module, "experts")
@@ -180,8 +179,8 @@ class InferenceEngine:
         return moe_n, experts_n
 
 
-# 新增：定义缓存策略的基类
 class CachePolicy:
+    """Base class for cache policies."""
     def __init__(self, cache_size):
         self.cache_size = cache_size
         self.cache_hits = None
@@ -189,21 +188,19 @@ class CachePolicy:
     def access(self, expert_id, current_position=None):
         raise NotImplementedError
 
-# 实现最优缓存策略（Belady算法）
 class OptimalCachePolicy(CachePolicy):
+    """Optimal cache policy implementation (Belady's algorithm)."""
     def __init__(self, cache_size, access_sequence):
         super().__init__(cache_size)
         self.cache = set()
         self.cache_hits = 0
         self.future_positions = defaultdict(deque)
-        # 预处理未来访问位置
         for pos, expert in enumerate(access_sequence):
             self.future_positions[expert].append(pos)
         self.access_sequence = access_sequence
 
     def access(self, current_position):
         expert_id = self.access_sequence[current_position]
-        # 移除当前访问位置
         self.future_positions[expert_id].popleft()
 
         if expert_id in self.cache:
@@ -214,12 +211,10 @@ class OptimalCachePolicy(CachePolicy):
             self.cache.add(expert_id)
             return
 
-        # 找到缓存中下次使用最远的专家
         farthest = -1
         expert_to_remove = None
         for cached_expert in self.cache:
             if not self.future_positions[cached_expert]:
-                # 如果缓存中的专家在未来不再被访问，优先移除
                 expert_to_remove = cached_expert
                 break
             next_use = self.future_positions[cached_expert][0]
@@ -231,29 +226,25 @@ class OptimalCachePolicy(CachePolicy):
             self.cache.remove(expert_to_remove)
         self.cache.add(expert_id)
 
-# 实现有限视野最优缓存策略（结合有限视野和LRU）
 class LimitedOptimalCachePolicy(CachePolicy):
-    def __init__(self, cache_size, access_sequence, lookahead=6*27*2): # iteration * n_moe * n_activated_experts
+    """Limited optimal cache policy combining limited lookahead and LRU."""
+    def __init__(self, cache_size, access_sequence, lookahead=6*27*2):
         super().__init__(cache_size)
         self.cache = set()
         self.cache_hits = 0
         self.lookahead = lookahead
         self.future_positions = defaultdict(deque)
-        # 预处理未来访问位置
         for pos, expert in enumerate(access_sequence):
             self.future_positions[expert].append(pos)
         self.access_sequence = access_sequence
-        # 使用 deque 来维护LRU顺序，左侧为最久未使用
         self.lru_order = deque()
 
     def access(self, current_position):
         expert_id = self.access_sequence[current_position]
-        # 移除当前访问位置
         self.future_positions[expert_id].popleft()
 
         if expert_id in self.cache:
             self.cache_hits += 1
-            # 更新LRU顺序
             if expert_id in self.lru_order:
                 self.lru_order.remove(expert_id)
             self.lru_order.append(expert_id)
@@ -264,21 +255,15 @@ class LimitedOptimalCachePolicy(CachePolicy):
             self.lru_order.append(expert_id)
             return
 
-        # 定义窗口结束位置
         window_end = current_position + self.lookahead
 
-        # 分为两类缓存中的专家：
-        # 1. 下次使用在lookahead窗口内
-        # 2. 下次使用在lookahead窗口外或不再被使用
         candidates_outside = []
         candidates_inside = []
 
         for cached_expert in self.cache:
-            # 清理已过去的访问位置
             while self.future_positions[cached_expert] and self.future_positions[cached_expert][0] <= current_position:
                 self.future_positions[cached_expert].popleft()
             if not self.future_positions[cached_expert]:
-                # 不再被使用，优先考虑移除
                 candidates_outside.append(cached_expert)
             else:
                 next_use = self.future_positions[cached_expert][0]
@@ -288,8 +273,6 @@ class LimitedOptimalCachePolicy(CachePolicy):
                     candidates_inside.append((cached_expert, next_use))
 
         if candidates_outside:
-            # 如果有专家的下次使用在lookahead窗口外，按照LRU移除
-            # 找到最久未使用的专家
             for expert in self.lru_order:
                 if expert in candidates_outside:
                     expert_to_remove = expert
@@ -297,7 +280,6 @@ class LimitedOptimalCachePolicy(CachePolicy):
             self.cache.remove(expert_to_remove)
             self.lru_order.remove(expert_to_remove)
         else:
-            # 如果所有专家的下次使用都在lookahead窗口内，移除下次使用最远的专家
             farthest = -1
             expert_to_remove = None
             for cached_expert, next_use in candidates_inside:
@@ -308,12 +290,11 @@ class LimitedOptimalCachePolicy(CachePolicy):
                 self.cache.remove(expert_to_remove)
                 self.lru_order.remove(expert_to_remove)
 
-        # 添加新的专家到缓存和LRU顺序
         self.cache.add(expert_id)
         self.lru_order.append(expert_id)
 
-# 实现最近最少使用（LRU）缓存策略
 class LRUCachePolicy(CachePolicy):
+    """Least Recently Used cache policy implementation."""
     def __init__(self, cache_size):
         super().__init__(cache_size)
         self.cache = set()
@@ -323,19 +304,17 @@ class LRUCachePolicy(CachePolicy):
     def access(self, expert_id):
         if expert_id in self.cache:
             self.cache_hits += 1
-            # 更新使用顺序
             self.order.remove(expert_id)
             self.order.append(expert_id)
         else:
             if len(self.cache) >= self.cache_size:
-                # 移除最久未使用的专家
                 lru_expert = self.order.popleft()
                 self.cache.remove(lru_expert)
             self.cache.add(expert_id)
             self.order.append(expert_id)
 
-# 实现最不经常使用（LFU）缓存策略
 class LFUCachePolicy(CachePolicy):
+    """Least Frequently Used cache policy implementation."""
     def __init__(self, cache_size):
         super().__init__(cache_size)
         self.cache = set()
@@ -348,7 +327,6 @@ class LFUCachePolicy(CachePolicy):
             self.freq[expert_id] += 1
         else:
             if len(self.cache) >= self.cache_size:
-                # 找到频率最低的专家
                 min_freq = min(self.freq.values()) if self.freq else 0
                 experts_with_min_freq = [exp for exp in self.cache if self.freq[exp] == min_freq]
                 expert_to_remove = random.choice(experts_with_min_freq)
@@ -369,7 +347,6 @@ class CacheSimulator:
         self.total_access = 0
         self.lookahead = lookahead
 
-    # 这些功能暂时保留，但是后续直接用policy class统一实现
     def is_in_cache(self, expert_id):
         return expert_id in self.cache_state
 
@@ -438,7 +415,6 @@ class CacheSimulator:
         num_moe_layers = len(all_expert_activations)
         chr_detail = [{'layer_idx': layer_idx, 'cache_size': cache_size, 'cache_policy': self.cache_policy, 'chr': 0.0} for layer_idx in range(num_moe_layers)] # chr means cache hit rate
         
-        # 预存访问序列（用于OptimalCache和LimitedOptimalCache）
         if self.cache_policy in ['Optimal', 'LimitedOptimal']:
             access_sequence = []
             for b in range(batch_size): # batch_size = 1
@@ -451,7 +427,6 @@ class CacheSimulator:
         else:
             access_sequence = []
             
-        # 初始化对应的缓存策略实例
         if self.cache_policy == 'Optimal':
             self.cache_instance = OptimalCachePolicy(cache_size=cache_size, access_sequence=access_sequence)
         elif self.cache_policy == 'LimitedOptimal':
@@ -614,7 +589,6 @@ class Inferencer:
         return generated_texts, all_expert_activations, all_gate_scores, infer_ts, logits
 
     def chat_with_model(self, use_lora=False, log_path=''):
-        # 20250928: 直接与模型对话
         import re
         print(f"Start to chat to model with LoRA set to {use_lora}: {self.inference_engine.model if use_lora else self.inference_engine.base_model}. \n")
         chat_idx = 0
@@ -625,12 +599,11 @@ class Inferencer:
                     print("Goodbye!")
                     break
                 response = self.inference_engine.generate([user_input], use_lora)[0][0]
-                response = response.split('##响应：')[-1]# .encode('utf-8').decode('unicode_escape') # 显示换行符
-                response = re.sub(r'\\n', '\n', response)   # 关键修复
+                response = response.split('##响应：')[-1]
+                response = re.sub(r'\\n', '\n', response)
                 user_input = re.sub(r'\\n', '\n', user_input)
                 print(f"Model: {response}")
                 
-                 # 新增：追加写入日志
                 with open(log_path, "a", encoding="utf-8") as f:
                     f.write(f"Chat idx: {chat_idx}\nUser: {user_input}\nBot: {response}\n\n")
                     chat_idx += 1
@@ -692,7 +665,7 @@ class Inferencer:
         for key in local_performance.keys():
             # local_ppl = torch.tensor(local_ppl, device=self.device)
             # dist.all_reduce(local_ppl, op=dist.ReduceOp.SUM)
-            local_met = local_performance[key] # TODO：预防出错
+            local_met = local_performance[key]
             local_met = torch.tensor(local_met, device=self.device)
             dist.all_reduce(local_met, op=dist.ReduceOp.SUM)
             performance_metrics[key] = local_met.item()
@@ -841,7 +814,7 @@ class Inferencer:
                 tok_id = torch.argmax(tok_probs)
                 if tok_id == self.inference_engine.tokenizer.eos_token_id:
                     break
-                probs += math.log(tok_probs[tok_id].item()) # hauser: 这里好像计算ppl的方式并没有考虑true label？是正常的么
+                probs += math.log(tok_probs[tok_id].item())
                 if verbose:
                     logger.info(f"\t{nr_tok}/{max_nr_tokens}, {tok_id}, {tok_probs[tok_id].item()}, {probs}")
                 nr_tok += 1
@@ -852,13 +825,13 @@ class Inferencer:
                         got        = output,
                         expected   = exptected,
                         is_correct = 0,
-                        ppl        = None) # 异常处理，添加了ppl=None返回值
+                        ppl        = None)
         nr_tok, probs = internal_ppl_compute(logits_idx)
         ppl = None
         ppl_e = math.exp(probs)
         try:
             if ppl_e < 1e-300:
-                ppl = 999 # 异常处理，用于指代ppl趋于无穷
+                ppl = 999
             else:
                 ppl = ppl_e ** (-1.0/nr_tok)
         except ZeroDivisionError:
@@ -1060,8 +1033,6 @@ class Inferencer:
         return self.general_eval(test_generic, self.compute_ppl_metric, extract_ground_truth_func, use_lora, case_num, setting)
 
     def plot_memory_usage_vs_throughput(self, cache_sizes, hit_rates_policies): # lru_hit_rates, lfu_hit_rates
-        # 这部分是模型参数后续留出接口：
-        # 量化后
         W_q = W_k = W_v = W_o = 2.25  # MB
         W_tok_embed = 112.5  # MB
         N_experts = 64
@@ -1069,16 +1040,13 @@ class Inferencer:
         N_shared_experts = 2
         L = 28
         N_act_experts = 6
-        # 计算常驻内存和动态内存
         W_resident = (W_q + W_k + W_v + W_o) * L + W_tok_embed + N_experts * E_size + N_shared_experts * E_size * (L - 1)
         W_dynamic = N_act_experts * E_size * (L - 1)
         
-        # 以下是硬件参数不用修改：
         cpu_mem_b = 45 * 1024 # MB/s
         npu_mem_b = 75 * 1024 # MB/s
         B_IO = 4.5 * 1024 # MB/s
 
-        # 整理cache-sizes、计算吞吐、保存画图数据
         memory_cost = [(W_resident + E_size * i) / 1024 for i in cache_sizes]
         cpu_datas, npu_datas, data_list = [], [], []
         for policy, hit_rates in hit_rates_policies.items():
@@ -1089,7 +1057,6 @@ class Inferencer:
         sub_plot_num = len(data_list)
         plt.figure(figsize=(14, 8))
         fig, axes = plt.subplots(sub_plot_num // 2, 2, figsize=(14, 8))
-        # 扁平化 axes 便于索引
         axes = axes.flatten()
 
         for ax, (data1, data2, label1, label2, color1, color2, marker1, marker2, method) in zip(axes, data_list):
@@ -1140,7 +1107,7 @@ def update_config(config, new_config):
             setattr(config, attribute, attr_now)
         print(f"iterate over attribute: {attribute}, set to {getattr(config, attribute)} ")
     
-    model_key = config.model_key # 新增：用于区分qwen还是deepseek模型
+    model_key = config.model_key
     batch_size = config.batch_size * config.gradient_accumulation_steps
     lora_rank = config.lora_rank
     # config.logging_dir = f"./logs{model_key}/{config.dataset_name}/lr_{config.learning_rate}_aux_{config.aux_loss_alpha}_type_{config.consecutive_expert_loss_type}_weight_{config.consecutive_expert_loss_weight}_bs_{batch_size}_rank_{lora_rank}"
@@ -1159,9 +1126,9 @@ if __name__ == "__main__":
     if config.chat_mode: 
         log_path = f'./logs/chat_history/{model_key}_{config.dataset_name}_lora_{use_lora}.txt'
         infer.chat_with_model(use_lora=use_lora, log_path=log_path)
-        exit() # 直接对话，不需要批量推理
+        exit()
 
-    for is_generic in [True]: # only use test set now. original is [True, False]
+    for is_generic in [True]: # only use test set now.
         setting = f"lora_{use_lora}_generic_{is_generic}_lr_{args.learning_rate}_aux_{args.aux_loss_alpha}_celType_{args.consecutive_expert_loss_type}_celWeight_{args.consecutive_expert_loss_weight}"
         if dist.get_rank() == 0:
             print("Base+LoRA Model Inference:")
