@@ -8,7 +8,15 @@
 
 [Codebase Organization](#codebase-organization)
 
+- [File Tree](#file-tree)
+
+- [Usage](#usage)
+
+- [Key Parameters](#key-parameters)
+
 [Data Release](#data-release)
+
+[For Developers](#for-developers)
 
 ## Introduction
 
@@ -100,6 +108,8 @@ deepspeed --master_port 29505 main.py \
     --max_words_len 512
 ```
 
+ Here, we use DeepSeek-MoE as an example. In `./models/deepseek-moe-16b-chat`, we have reconstructed the model to integrate the expert routing locality module, and provided `./models/deepseek-moe-16b-chat/offline_ecr_profile.csv` as the offline expert routing locality profiling file.
+
 **Inference**:
 ```bash
 torchrun --standalone --nnodes=1 --master_port=29505 --nproc_per_node=1 inference.py \
@@ -126,7 +136,7 @@ Access the training dashboard by opening `http://server_ip:6006/` in your browse
 
 ### Key Parameters
 
-- **`model_name`**: Base model path. We use DeepSeek-MoE as an example, where we have modified the model code in `./models/deepseek-moe-16b-chat` to add locality profiling modules
+- **`model_name`**: The path to the base model.
 - **`dataset_name`**: Target task dataset. We provide 12 standard datasets consistent with the paper, including: alpaca, aqua, boolq, gsm8k, mathqa, mawps, mmlu, obqa, piqa, samsum, siqa, wikitext
 - **`consecutive_expert_loss_type`** and **`consecutive_expert_loss_weight`**: Parameters that control cache affinity constraints to optimize expert routing locality
 - **`model_key`**: Model identifier used to distinguish between different model configurations
@@ -140,3 +150,5 @@ Access the training dashboard by opening `http://server_ip:6006/` in your browse
 ## Data Release
 We provide a portion of the evaluation data using the WikiText dataset as an example [here](https://github.com/CFMoE/CFMoE.github.io/tree/main/wikitext_evaluation.csv). The shared data includes the input sequences (`Input`), the corresponding outputs from both the baseline and CFMoE models (`Output_Baseline` and `Output_CFMoE`), as well as their expert consistency rates (ECR) during inference (`ECR_Baseline` and `ECR_CFMoE`).
 
+## For Developers
+Our code is licensed under Apache 2.0 in accordance with AOSP’s license. Please adhere to the corresponding open source policy when applying modifications and commercial uses.
