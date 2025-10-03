@@ -45,6 +45,7 @@ The CFMoE codebase is organized as follows:
 ├── utils.py
 ├── logger.py
 ├── requirements.txt
+├── wikitext_evaluation.csv
 ├── README.md
 ├── LICENSE
 ├── datasets/
@@ -137,5 +138,5 @@ Access the training dashboard by opening `http://server_ip:6006/` in your browse
 
 
 ## Data Release
-We provide a portion of the evaluation data using the WikiText dataset as an example [here](https://github.com/CFMoE/CFMoE.github.io/tree/main/Dataset). The shared data includes the input sequences (`Input`), the corresponding outputs from both the baseline and CFMoE models (`Output_Baseline` and `Output_CFMoE`), as well as their expert consistency rates (ECR) during inference (`ECR_Baseline` and `ECR_CFMoE`).
+We provide a portion of the evaluation data using the WikiText dataset as an example [here](https://github.com/CFMoE/CFMoE.github.io/tree/main/wikitext_evaluation.csv). The shared data includes the input sequences (`Input`), the corresponding outputs from both the baseline and CFMoE models (`Output_Baseline` and `Output_CFMoE`), as well as their expert consistency rates (ECR) during inference (`ECR_Baseline` and `ECR_CFMoE`).
 
