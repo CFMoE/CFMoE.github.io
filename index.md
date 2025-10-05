@@ -151,4 +151,4 @@ Access the training dashboard by opening `http://server_ip:6006/` in your browse
 We provide a portion of the evaluation data using the WikiText dataset as an example [here](https://github.com/CFMoE/CFMoE.github.io/tree/main/wikitext_evaluation.csv). The shared data includes the input sequences (`Input`), the corresponding outputs from both the baseline and CFMoE models (`Output_Baseline` and `Output_CFMoE`), as well as their expert consistency rates (ECR) during inference (`ECR_Baseline` and `ECR_CFMoE`).
 
 ## For Developers
-Our code is licensed under Apache 2.0 in accordance with AOSP’s license. Please adhere to the corresponding open source policy when applying modifications and commercial uses.
+Our code is licensed under Apache 2.0. Please adhere to the corresponding open source policy when applying modifications and commercial uses.
