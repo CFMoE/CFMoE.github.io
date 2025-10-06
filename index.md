@@ -28,18 +28,7 @@ This repository contains our code for training and serving MoE models using CFMo
 
 ### [The entire codebase and sample data are available in our [Github repo](https://github.com/CFMoE/CFMoE.github.io#).]
 
-
-## Codebase Organization
-
-The CFMoE codebase is organized into two main components:
-
-**Training (`main.py`)**: Fine-tunes MoE models using CFMoE's locality-aware expert routing and data-aware elastic fine-tuning strategies. The training script supports distributed training with DeepSpeed, and configuration parameters can be provided both via `config.py` and through command-line arguments.
-
-**Inference (`inference.py`)**: We provide an inference engine to simulate the serving process of fine-tuned MoE models. The inference engine not only evaluates model performance and measures expert consistency rates (ECR) during serving, but also records cache hit rates (CHR) under various cache sizes and cache replacement policies, including OPT, LRU, LFU, and LOPT.
-
-Both components use `config.py` as the central configuration file and provide `argparse` interfaces for command-line parameter customization.
-
-### File Tree
+## File Tree
 
 The CFMoE codebase is organized as follows:
 
@@ -53,9 +42,10 @@ The CFMoE codebase is organized as follows:
 ├── utils.py
 ├── logger.py
 ├── requirements.txt
-├── wikitext_evaluation.csv
 ├── README.md
 ├── LICENSE
+├── data_release/
+│   ├── wikitext_evaluation.csv
 ├── datasets/
 │   ├── alpaca/
 │   ├── aqua/
@@ -78,6 +68,16 @@ The `models/` directory contains the MoE models.
 For example, we have modified the DeepSeek MoE model in 
 `models/deepseek-moe-16b-chat/` to include locality 
 profiling modules.
+
+## Codebase Organization
+
+The CFMoE codebase is organized into two main components:
+
+**Training (`main.py`)**: Fine-tunes MoE models using CFMoE's locality-aware expert routing and data-aware elastic fine-tuning strategies. The training script supports distributed training with DeepSpeed, and configuration parameters can be provided both via `config.py` and through command-line arguments.
+
+**Inference (`inference.py`)**: We provide an inference engine to simulate the serving process of fine-tuned MoE models. The inference engine not only evaluates model performance and measures expert consistency rates (ECR) during serving, but also records cache hit rates (CHR) under various cache sizes and cache replacement policies, including OPT, LRU, LFU, and LOPT.
+
+Both components use `config.py` as the central configuration file and provide `argparse` interfaces for command-line parameter customization.
 
 ### Usage
 
@@ -103,12 +103,13 @@ deepspeed --master_port 29505 main.py \
     --model_key "_deepseek_16b" \
     --model_name "./models/deepseek-moe-16b-chat" \
     --moe_module_name "mlp" \
+    --daft_threshold 0.7 \
     --lora_extra_modules "gate" \
     --target_modules "q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj" \
     --max_words_len 512
 ```
 
- Here, we use DeepSeek-MoE as an example. In `./models/deepseek-moe-16b-chat`, we have reconstructed the model to integrate the expert routing locality module, and provided `./models/deepseek-moe-16b-chat/offline_ecr_profile.csv` as the offline expert routing locality profiling file.
+Here, we use DeepSeek-MoE as an example. In `./models/deepseek-moe-16b-chat`, we have reconstructed the model to integrate the expert routing locality module, and provided `./models/deepseek-moe-16b-chat/offline_ecr_profile.csv` as the offline expert routing locality profiling file. 
 
 **Inference**:
 ```bash
@@ -148,7 +149,7 @@ Access the training dashboard by opening `http://server_ip:6006/` in your browse
 
 
 ## Data Release
-We provide a portion of the evaluation data using the WikiText dataset as an example [here](https://github.com/CFMoE/CFMoE.github.io/tree/main/wikitext_evaluation.csv). The shared data includes the input sequences (`Input`), the corresponding outputs from both the baseline and CFMoE models (`Output_Baseline` and `Output_CFMoE`), as well as their expert consistency rates (ECR) during inference (`ECR_Baseline` and `ECR_CFMoE`).
+We provide a portion of the evaluation data using the WikiText dataset as an example [here](https://github.com/CFMoE/CFMoE.github.io/tree/main/data_release/wikitext_evaluation.csv). The shared data includes the input sequences (`Input`), the corresponding outputs from both the baseline and CFMoE models (`Output_Baseline` and `Output_CFMoE`), as well as their expert consistency rates (ECR) during inference (`ECR_Baseline` and `ECR_CFMoE`).
 
 ## For Developers
 Our code is licensed under Apache 2.0. Please adhere to the corresponding open source policy when applying modifications and commercial uses.

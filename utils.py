@@ -110,6 +110,13 @@ def get_arguments():
     )
     
     parser.add_argument(
+        "--daft_threshold",
+        type=float,
+        default=1.0,
+        help="DAFT threshold."
+    )
+    
+    parser.add_argument(
         "--model_name",
         type=str,
         default="./models/smallthinker-moe-4b-thinker",
