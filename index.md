@@ -109,7 +109,7 @@ deepspeed --master_port 29505 main.py \
     --max_words_len 512
 ```
 
-Here, we use DeepSeek-MoE as an example. In `./models/deepseek-moe-16b-chat`, we have reconstructed the model to integrate the expert routing locality module, and provided `./models/deepseek-moe-16b-chat/offline_ecr_profile.csv` as the offline expert routing locality profiling file. 
+Here, we use DeepSeek-MoE as an example. In `./models/deepseek-moe-16b-chat`, we have reconstructed the model to integrate the expert routing locality module, and provided `./models/deepseek-moe-16b-chat/offline_ecr_profile.csv` as the offline expert routing locality profiling file. Additionally, the threshold of data-aware elastic fine-tuning strategy is set as 0.7 to reduce training overhead.
 
 **Inference**:
 ```bash
