@@ -6,9 +6,9 @@
 ## Table of Contents
 [Introduction](#introduction)
 
-[Codebase Organization](#codebase-organization)
+[File Tree](#file-tree)
 
-- [File Tree](#file-tree)
+[Codebase Organization](#codebase-organization)
 
 - [Usage](#usage)
 
