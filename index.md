@@ -149,7 +149,17 @@ Access the training dashboard by opening `http://server_ip:6006/` in your browse
 
 
 ## Data Release
-We provide a portion of the evaluation data using the WikiText dataset as an example [here](https://github.com/CFMoE/CFMoE.github.io/tree/main/data_release/wikitext_evaluation.csv). The shared data includes the input sequences (`Input`), the corresponding outputs from both the baseline and CFMoE models (`Output_Baseline` and `Output_CFMoE`), as well as their expert consistency rates (ECR) during inference (`ECR_Baseline` and `ECR_CFMoE`).
+We provide a portion of the evaluation data using the WikiText dataset as an example [here](https://github.com/CFMoE/CFMoE.github.io/tree/main/data_release/wikitext_evaluation.csv), including model outputs and performance metrics for both baseline and CFMoE approaches:
+
+| Information | Description |
+| ---- | ---- |
+| `Input` | Input text sequences from the WikiText dataset, serving as prompt tokens and encompassing a diverse range of topics and contextual information |
+| `Output_Baseline` | Generated text outputs from the baseline MoE model without CFMoE optimizations |
+| `ECR_Baseline` | Expert Consistency Rate (ECR) of the baseline model, quantitatively evaluating the consistency of expert activations across consecutive tokens to reflect the locality of expert routing |
+| `Output_CFMoE` | Generated text outputs from the CFMoE model with locality-aware expert routing and data-aware elastic fine-tuning |
+| `ECR_CFMoE` | ECR of the CFMoE model, demonstrating improved expert routing locality and cache efficiency |
+
+The evaluation data demonstrates CFMoE's effectiveness in improving expert routing locality while maintaining comparable output quality.
 
 ## For Developers
 Our code is licensed under Apache 2.0. Please adhere to the corresponding open source policy when applying modifications and commercial uses.
